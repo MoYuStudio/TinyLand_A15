@@ -1,0 +1,202 @@
+[gd_scene load_steps=7 format=3 uid="uid://cwqq41wqxd46v"]
+
+[sub_resource type="GDScript" id="GDScript_sswq1"]
+script/source = "
+extends Camera3D
+
+@onready var 射线投影 := $Camera3D/RayCast
+
+signal 碰撞点
+
+var 移动速度 = 0.3
+
+# 相机视角
+var 最小可视角 = -90.0
+var 最大可视角 = 90.0
+var 视角灵敏度 = 30.0
+
+# 向量
+var 移动向量 = Vector3()
+var 鼠标周期 = Vector2()
+# var 鼠标位置 = Vector2()
+
+var 碰撞点位置
+
+var 鼠标锁定 = true
+
+func _ready():
+	pass
+	
+func _input(事件):
+	
+	if 鼠标锁定 == true:
+			
+		if 事件 is InputEventMouseMotion:
+			鼠标周期 = 事件.relative
+			_select_target(事件.position)
+			
+		if 事件 is InputEventMouseButton or 事件 is InputEventScreenTouch:
+			_select_target(事件.position)
+
+func _select_target(点击位置):
+	var 起点 = project_ray_origin(点击位置)
+	var 终点 = 起点 + project_ray_normal(点击位置)*100
+	var 空间状态 = get_world_3d().direct_space_state
+	var 参数 = PhysicsRayQueryParameters3D.new()
+	参数.from = 起点
+	参数.to = 终点
+	参数.exclude = []
+	参数.collision_mask = 1
+	射线投影.force_raycast_update()
+	if 射线投影.is_colliding():
+		var 射线投影参数 = 空间状态.intersect_ray(参数)
+		if 射线投影参数:
+			var 碰撞点位置 = 射线投影参数['position']
+			碰撞点位置 = Vector3(碰撞点位置[0],0,碰撞点位置[2])
+			emit_signal('碰撞点', 碰撞点位置)
+
+func _physics_process(delta):
+	
+	# var camera_pos = position
+	
+	if 鼠标锁定 == true:
+	
+		var 输入向量 = Vector3()
+		
+		# 输入
+		if Input.is_action_pressed('Right_Click'):
+			# 沿x轴旋转相机
+			rotation_degrees.x -= 鼠标周期.y * 视角灵敏度 * delta
+
+			# 夹紧相机x旋转轴
+			rotation_degrees.x = clamp(rotation_degrees.x, 最小可视角, 最大可视角)
+
+			# 沿 y 轴旋转玩家
+			rotation_degrees.y -= 鼠标周期.x * 视角灵敏度 * delta
+
+			# 重置 mouseDelta 向量
+			鼠标周期 = Vector2()
+			
+			# 重置 x y z 速度
+			移动向量.x = 0
+			移动向量.y = 0
+			移动向量.z = 0
+			
+		if Input.is_action_pressed('W'):
+			输入向量.z -= 1
+		if Input.is_action_pressed('S'):
+			输入向量.z += 1
+		if Input.is_action_pressed('A'):
+			输入向量.x -= 1
+		if Input.is_action_pressed('D'):
+			输入向量.x += 1
+		if Input.is_action_pressed('Space'):
+			输入向量.y += 1
+		if Input.is_action_pressed('Shift'):
+			if position.y >= 2.9: # 地平线限位
+				输入向量.y -= 1
+		if Input.is_action_pressed('Ctrl'):
+			移动速度 = 0.9
+		else:
+			移动速度 = 0.3
+		
+		输入向量 = 输入向量.normalized()
+		
+		# 获得前进和正确的方向
+		var 向前 = global_transform.basis.z
+		var 向右 = global_transform.basis.x
+		
+		var 相对位置 = (向前 * 输入向量.z + 向右 * 输入向量.x)
+		
+		# 设置速度
+		移动向量.x = 相对位置.x * 移动速度
+		移动向量.y = 输入向量.y * 移动速度
+		移动向量.z = 相对位置.z * 移动速度
+		
+		position.x += 移动向量.x
+		position.y += 移动向量.y
+		position.z += 移动向量.z
+		
+	elif 鼠标锁定 == false:
+		pass
+"
+
+[sub_resource type="GDScript" id="GDScript_0qyyn"]
+script/source = "
+extends Node3D
+
+# 创建新的建筑物
+func _create_building(building_type: String, position: Vector3):
+	# 加载建筑物场景并创建实例
+	var building = load(\"res://Building.tscn\").instance()
+
+	# 根据建筑物类型设置纹理
+	if building_type == \"residential\":
+		# 住宅建筑物使用住宅纹理
+		building.get_node(\"MeshInstance\").material.albedo_texture = load(\"res://resource/textures/logo.png\")
+	elif building_type == \"commercial\":
+		# 商业建筑物使用商业纹理
+		building.get_node(\"MeshInstance\").material.albedo_texture = load(\"res://resource/textures/logo.png\")
+	elif building_type == \"industrial\":
+		# 工业建筑物使用工业纹理
+		building.get_node(\"MeshInstance\").material.albedo_texture = load(\"res://resource/textures/logo.png\")
+
+	# 设置建筑物位置
+	building.translation = position
+
+	# 将建筑物添加为 BuildingContainer 的子节点
+	$BuildingContainer.add_child(building)
+
+
+# Called when the node enters the scene tree for the first time.
+func _ready():
+	pass # Replace with function body.
+
+
+# Called every frame. 'delta' is the elapsed time since the previous frame.
+func _process(delta):
+	pass
+"
+
+[sub_resource type="BoxMesh" id="BoxMesh_skm3r"]
+
+[sub_resource type="PhysicalSkyMaterial" id="PhysicalSkyMaterial_pvjdn"]
+
+[sub_resource type="Sky" id="Sky_xf0m5"]
+sky_material = SubResource("PhysicalSkyMaterial_pvjdn")
+
+[sub_resource type="Environment" id="Environment_mc340"]
+background_mode = 2
+sky = SubResource("Sky_xf0m5")
+
+[node name="World" type="Node3D"]
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 10, 10)
+script = SubResource("GDScript_sswq1")
+
+[node name="RayCast3D" type="RayCast3D" parent="Camera3D"]
+target_position = Vector3(0, 0, -10)
+
+[node name="BuildingContainer" type="Node3D" parent="."]
+script = SubResource("GDScript_0qyyn")
+
+[node name="Building" type="MeshInstance3D" parent="BuildingContainer"]
+mesh = SubResource("BoxMesh_skm3r")
+
+[node name="BuildingSelector" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="BuildingTypeButton" type="OptionButton" parent="BuildingSelector"]
+layout_mode = 0
+offset_right = 14.0
+offset_bottom = 20.0
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_mc340")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.166356, 0.986066, 0, -0.986066, 0.166356, 0, 2.60387, 0)
